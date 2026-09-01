@@ -36,9 +36,9 @@ services:
 
   simulator:
     <<: *demo
-    command: ["python", "-m", "simulator.server"]
+    command:  ["python", "-m", "simulator.server"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',2775),2).close()"]
+      test:  ["CMD-SHELL", "timeout 2 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/2775' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -65,7 +65,7 @@ services:
       redis: {condition: service_healthy}
       simulator: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',8990),2).close()"]
+      test: ["CMD-SHELL", "timeout 2 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8990' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 30
