@@ -86,7 +86,7 @@ services:
 
   api:
     <<: *demo
-    ports: ["127.0.0.1:8000:8000"]
+    ports: ["127.0.0.1:10080:8000"]
     environment:
       DATABASE_PATH: /data/demo.sqlite3
       DEMO_API_KEY: ${DEMO_API_KEY:-local-demo-key}
