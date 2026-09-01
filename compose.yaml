@@ -56,7 +56,7 @@ services:
       AMQP_BROKER_PASSWORD: local-broker-only
       JCLI_PASSWORD: ${JCLI_PASSWORD:-local-admin-only}
     volumes:
-      - ./scripts/configure_gateway.py:/demo/configure_gateway.py:ro
+      - ./scripts/configure_gateway.py:/demo/configure_gateway.py:ro,Z
       - jasmin-config:/etc/jasmin
       - jasmin-store:/etc/jasmin/store
       - jasmin-logs:/var/log/jasmin
@@ -107,7 +107,7 @@ services:
 
 networks:
   lab:
-    internal: true
+    #internal: true
 
 volumes:
   rabbitmq-data:
