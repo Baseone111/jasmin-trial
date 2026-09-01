@@ -19,6 +19,7 @@ def safe_env(name,default):
 class Console:
     def __init__(self):
         self.conn = telnetlib.Telnet(os.getenv("JCLI_HOST","jasmin"),8990,timeout=10)
+        self.conn.write(b"\r\n")          
         self.wait(b"Username:")
         self.conn.write((safe_env("JCLI_USERNAME","labadmin")+"\n").encode())
         self.wait(b"Password:")
