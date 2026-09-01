@@ -1,0 +1,118 @@
+name: jasmin-demo
+
+x-demo: &demo
+  build: .
+  image: jasmin-demo-app:local
+  networks: [lab]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-alpine
+    hostname: rabbitmq
+    networks: [lab]
+    environment:
+      RABBITMQ_DEFAULT_USER: jasmin
+      RABBITMQ_DEFAULT_PASS: local-broker-only
+    volumes: ["rabbitmq-data:/var/lib/rabbitmq"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    networks: [lab]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  simulator:
+    <<: *demo
+    command: ["python", "-m", "simulator.server"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',2775),2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  jasmin:
+    image: ${JASMIN_IMAGE:-jookies/jasmin:latest}
+    networks: [lab]
+    entrypoint: ["python", "/demo/configure_gateway.py"]
+    command: ["jasmind.py", "--enable-interceptor-client", "--enable-dlr-thrower", "--enable-dlr-lookup", "-u", "labadmin", "-p", "${JCLI_PASSWORD:-local-admin-only}"]
+    environment:
+      REDIS_CLIENT_HOST: redis
+      AMQP_BROKER_HOST: rabbitmq
+      AMQP_BROKER_USERNAME: jasmin
+      AMQP_BROKER_PASSWORD: local-broker-only
+      JCLI_PASSWORD: ${JCLI_PASSWORD:-local-admin-only}
+    volumes:
+      - ./scripts/configure_gateway.py:/demo/configure_gateway.py:ro
+      - jasmin-config:/etc/jasmin
+      - jasmin-store:/etc/jasmin/store
+      - jasmin-logs:/var/log/jasmin
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      simulator: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1',8990),2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  bootstrap:
+    <<: *demo
+    command: ["python", "scripts/bootstrap.py"]
+    environment:
+      JCLI_HOST: jasmin
+      JCLI_USERNAME: labadmin
+      JCLI_PASSWORD: ${JCLI_PASSWORD:-local-admin-only}
+      JASMIN_USERNAME: ${JASMIN_USERNAME:-demo-app}
+      JASMIN_PASSWORD: ${JASMIN_PASSWORD:-local-sms-only}
+    depends_on:
+      jasmin: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    <<: *demo
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      DATABASE_PATH: /data/demo.sqlite3
+      DEMO_API_KEY: ${DEMO_API_KEY:-local-demo-key}
+      CALLBACK_SECRET: ${CALLBACK_SECRET:-local-callback-secret}
+      CALLBACK_BASE_URL: http://api:8000
+      JASMIN_SEND_URL: http://jasmin:1401/send
+      JASMIN_USERNAME: ${JASMIN_USERNAME:-demo-app}
+      JASMIN_PASSWORD: ${JASMIN_PASSWORD:-local-sms-only}
+    volumes: ["app-data:/data"]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+networks:
+  lab:
+    internal: true
+
+volumes:
+  rabbitmq-data:
+  redis-data:
+  jasmin-config:
+  jasmin-store:
+  jasmin-logs:
+  app-data:
